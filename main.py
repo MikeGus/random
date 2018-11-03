@@ -1,191 +1,210 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.figure import Figure
-
-from math import exp
-from math import factorial
-
-from PyQt5 import QtCore
 from PyQt5 import QtWidgets
+import random
+import math
 
 
-class MatplotlibWidget(QtWidgets.QWidget):
-    def __init__(self, parent=None):
-        super(MatplotlibWidget, self).__init__(parent)
+def count_elements(lst):
+    s = set(lst)
+    c = []
+    for el in s:
+        c.append(lst.count(el))
 
-        self.figure = Figure()
-        self.canvas = FigureCanvasQTAgg(self.figure)
-
-        self.axis = self.figure.add_subplot(111)
-
-        self.layoutVertical = QtWidgets.QVBoxLayout(self)  # QVBoxLayout
-        self.layoutVertical.addWidget(self.canvas)
+    return c
 
 
-class DistributionDataGetter(QtCore.QObject):
-    emitter = QtCore.pyqtSignal(list)
+def is_mean(lst, order):
+    mean = 1 / float(order)
+    cnt = count_elements(lst)
+    n  = len(lst)
 
-    def erlangDens(self, l, k, x):
-        if x < 0:
-            return 0
-        return ((l ** k) * (x ** (k - 1)) * exp(-l * x)) / factorial(k - 1)
+    diff = 0
+    for el in cnt:
+        diff = max(diff, abs(el / float(n) - mean))
 
-    def erlangDist(self, l, k, x):
-        if x < 0:
-            return 0
-        sum = 0
-        for i in range(0, int(k - 1)):
-            sum += (exp(-l * x) * ((l * x) ** i)) / factorial(i)
-        return 1 - sum
+    stat = (6 * n * diff + 1) / (6 * math.sqrt(n))
+    stats = [1.224, 1.358, 1.628]
 
-    def erlangSecondBound(self, firstParam, secondParam):
-        secondBound = 0
-        while self.erlangDist(firstParam, secondParam, secondBound) < 0.999:
-            secondBound += 1
+    if stat <= stats[2]:
+        return 'Случайная'
 
-        return secondBound + 1
-
-    def evenDist(self, firstParam, secondParam, x):
-        return 0 + (x - firstParam) / float(secondParam - firstParam)
-
-    def run(self, firstParam, secondParam, isEven=True):
-        x = []
-        dataDist = []
-        dataDens = []
-        if isEven:
-            step = 0.001
-            val = firstParam
-            while val <= secondParam:
-                x.append(val)
-                val += step
-
-            dataDens = [1 / (secondParam - firstParam)] * len(x)
-            dataDist = [self.evenDist(firstParam, secondParam, val) for val in x]
-
-        else:
-            step = 0.001
-            val = -1
-            secondBound = self.erlangSecondBound(firstParam, secondParam)
-            while val <= secondBound:
-                x.append(val)
-                val += step
-
-            dataDens = [self.erlangDens(firstParam, secondParam, val) for val in x]
-            dataDist = [self.erlangDist(firstParam, secondParam, val) for val in x]
-
-        self.emitter.emit([x, dataDens, dataDist])
+    return 'Неслучайная'
 
 
 class MyWindow(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(MyWindow, self).__init__(parent)
 
-        self.radioGroup = QtWidgets.QButtonGroup(self)
+        self.functional = [[],[],[]]
+        self.file = [[],[],[]]
 
-        self.radioEven = QtWidgets.QRadioButton(self)
-        self.radioEven.setText('Равномерное распределение')
-        self.radioEven.setChecked(True)
-        self.radioEven.clicked.connect(self.on_radioEven_clicked)
-        self.radioGroup.addButton(self.radioEven)
+        random.seed()
+        self.displayNumber = 11
+        self.fullNumber = 1000
 
-        self.radioErlang = QtWidgets.QRadioButton(self)
-        self.radioErlang.setText('Распределение Эрланга')
-        self.radioErlang.clicked.connect(self.on_radioErlang_clicked)
-        self.radioGroup.addButton(self.radioErlang)
+        self.resize(800, 600)
+        self.btnGenerate = QtWidgets.QPushButton(self)
+        self.btnGenerate.setText('Обновить')
+        self.btnGenerate.clicked.connect(self.generate_btn_press)
 
-        self.firstParamLabel = QtWidgets.QLabel(self)
-        self.firstParamLabel.setText('a = ')
-        self.secondParamLabel = QtWidgets.QLabel(self)
-        self.secondParamLabel.setText('b = ')
+        self.tableFunctionalLabel = QtWidgets.QLabel(self)
+        self.tableFunctionalLabel.setText('Сгенерированные')
+        self.tableFunctional = QtWidgets.QTableWidget(self)
+        self.tableFunctional.setColumnCount(3)
+        self.tableFunctional.setRowCount(self.displayNumber)
+        self.tableFunctional.setHorizontalHeaderItem(0,
+                                                     QtWidgets.QTableWidgetItem('1р'))
 
-        self.firstParam = QtWidgets.QDoubleSpinBox(self)
-        self.firstParam.setMinimum(-1000)
-        self.firstParam.setMaximum(1000)
+        self.tableFunctional.setHorizontalHeaderItem(1,
+                                                     QtWidgets.QTableWidgetItem('2р'))
 
-        self.secondParam = QtWidgets.QDoubleSpinBox(self)
-        self.secondParam.setMinimum(-1000)
-        self.secondParam.setMaximum(1000)
+        self.tableFunctional.setHorizontalHeaderItem(2,
+                                                     QtWidgets.QTableWidgetItem('3р'))
+        header = self.tableFunctional.horizontalHeader()
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
 
-        self.pushButtonPlot = QtWidgets.QPushButton(self)
-        self.pushButtonPlot.setText("Построить график")
-        self.pushButtonPlot.clicked.connect(self.on_pushButtonPlot_clicked)
+        self.tableFileLabel = QtWidgets.QLabel(self)
+        self.tableFileLabel.setText('Из файла')
+        self.tableFile = QtWidgets.QTableWidget(self)
+        self.tableFile.setColumnCount(3)
+        self.tableFile.setRowCount(self.displayNumber)
+        self.tableFile.setHorizontalHeaderItem(0,
+                                                     QtWidgets.QTableWidgetItem('1р'))
 
-        self.densityWidget = MatplotlibWidget(self)
-        self.densityWidget.figure.set_label('Плотность распределения')
-        self.distrubutionWidget = MatplotlibWidget(self)
-        self.distrubutionWidget.figure.set_label('Функция распределения')
+        self.tableFile.setHorizontalHeaderItem(1,
+                                                     QtWidgets.QTableWidgetItem('2р'))
+
+        self.tableFile.setHorizontalHeaderItem(2,
+                                                     QtWidgets.QTableWidgetItem('3р'))
+        header = self.tableFile.horizontalHeader()
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.Stretch)
+
+        self.inputLabel = QtWidgets.QLabel(self)
+        self.inputLabel.setText('Проверка:')
+        self.input = QtWidgets.QTextEdit(self)
+
+        self.lblRand = QtWidgets.QLabel(self)
+
+        self.btnCheck = QtWidgets.QPushButton(self)
+        self.btnCheck.setText('Проверить')
+        self.btnCheck.clicked.connect(self.check_btn_press)
 
         self.layoutGrid = QtWidgets.QGridLayout(self)
-        self.layoutGrid.addWidget(self.radioEven, 0, 0)
-        self.layoutGrid.addWidget(self.radioErlang, 1, 0)
-        self.layoutGrid.addWidget(self.firstParamLabel, 2, 0)
-        self.layoutGrid.addWidget(self.firstParam, 2, 1)
+        self.layoutGrid.addWidget(self.tableFunctionalLabel, 0, 0)
+        self.layoutGrid.addWidget(self.tableFileLabel, 0, 1)
+        self.layoutGrid.addWidget(self.tableFunctional, 1, 0)
+        self.layoutGrid.addWidget(self.tableFile, 1, 1)
+        self.layoutGrid.addWidget(self.inputLabel, 2, 0)
+        self.layoutGrid.addWidget(self.btnGenerate, 2, 1)
+        self.layoutGrid.addWidget(self.input, 3, 0, 1, 2)
+        self.layoutGrid.addWidget(self.lblRand, 4, 0)
+        self.layoutGrid.addWidget(self.btnCheck, 4, 1)
 
-        self.layoutGrid.addWidget(self.secondParamLabel, 3, 0)
-        self.layoutGrid.addWidget(self.secondParam, 3, 1)
+        self.generate_btn_press()
 
-        self.layoutGrid.addWidget(self.pushButtonPlot, 4, 0)
+    def generate_new(self):
+        self.functional[0].clear()
+        self.functional[1].clear()
+        self.functional[2].clear()
 
-        self.layoutGrid.addWidget(self.densityWidget, 5, 0)
-        self.layoutGrid.addWidget(self.distrubutionWidget, 5, 1)
+        for i in range(self.fullNumber):
+            self.functional[0].append(random.randint(0, 9))
+            self.functional[1].append(random.randint(10, 99))
+            self.functional[2].append(random.randint(100, 999))
 
-        self.distributionDataGetter = DistributionDataGetter()
-        self.distributionDataGetter.emitter.connect(self.showData)
+        self.tableFunctional.setItem(0, 0, QtWidgets.QTableWidgetItem())
+        self.tableFunctional.item(0, 0).setText(str(is_mean(self.functional[0], 10)))
 
-    @QtCore.pyqtSlot()
-    def on_pushButtonPlot_clicked(self):
-        if self.radioEven.isChecked() and self.firstParam.value() >= self.secondParam.value():
-            msg = QtWidgets.QMessageBox(self)
-            msg.setText('B должна быть больше, чем A!')
-            msg.show()
+        self.tableFunctional.setItem(0, 1, QtWidgets.QTableWidgetItem())
+        self.tableFunctional.item(0, 1).setText(str(is_mean(self.functional[1], 100)))
+
+        self.tableFunctional.setItem(0, 2, QtWidgets.QTableWidgetItem())
+        self.tableFunctional.item(0, 2).setText(str(is_mean(self.functional[2], 1000)))
+
+        for i in range(1, self.displayNumber):
+            self.tableFunctional.setItem(i, 0, QtWidgets.QTableWidgetItem())
+            self.tableFunctional.item(i, 0).setText(str(self.functional[0][i]))
+
+            self.tableFunctional.setItem(i, 1, QtWidgets.QTableWidgetItem())
+            self.tableFunctional.item(i, 1).setText(str(self.functional[1][i]))
+
+            self.tableFunctional.setItem(i, 2, QtWidgets.QTableWidgetItem())
+            self.tableFunctional.item(i, 2).setText(str(self.functional[2][i]))
+
+    def find_file_new(self):
+        self.file[0].clear()
+        self.file[1].clear()
+        self.file[2].clear()
+
+        file = open('digits.txt')
+        for line in file:
+            numbers = list(map(int, line.split()))[1:]
+            if len(self.file[0]) < self.fullNumber:
+                self.file[0] += [n % 10 for n in numbers]
+            elif len(self.file[1]) < self.fullNumber:
+                self.file[1] += [n % 100 for n in numbers]
+            elif len(self.file[2]) < self.fullNumber:
+                self.file[2] += [n % 1000 for n in numbers]
+            else:
+                break
+
+        for i in range(self.fullNumber):
+            self.file[0].append(random.randint(0, 9))
+            self.file[1].append(random.randint(0, 99))
+            self.file[2].append(random.randint(0, 999))
+
+        self.tableFile.setItem(0, 0, QtWidgets.QTableWidgetItem())
+        self.tableFile.item(0, 0).setText(str(is_mean(self.file[0], 10)))
+
+        self.tableFile.setItem(0, 1, QtWidgets.QTableWidgetItem())
+        self.tableFile.item(0, 1).setText(str(is_mean(self.file[1], 100)))
+
+        self.tableFile.setItem(0, 2, QtWidgets.QTableWidgetItem())
+        self.tableFile.item(0, 2).setText(str(is_mean(self.file[2], 1000)))
+
+        for i in range(1, self.displayNumber):
+            self.tableFile.setItem(i, 0, QtWidgets.QTableWidgetItem())
+            self.tableFile.item(i, 0).setText(str(self.file[0][i]))
+
+            self.tableFile.setItem(i, 1, QtWidgets.QTableWidgetItem())
+            self.tableFile.item(i, 1).setText(str(self.file[1][i]))
+
+            self.tableFile.setItem(i, 2, QtWidgets.QTableWidgetItem())
+            self.tableFile.item(i, 2).setText(str(self.file[2][i]))
+
+    def generate_btn_press(self):
+        self.generate_new()
+        self.find_file_new()
+
+    def check_btn_press(self):
+        lst = self.input.toPlainText().split()
+        lst = list(map(int, lst))
+
+        if len(lst) == 0:
+            self.lblRand.setText('Случайная')
             return
-        self.distrubutionWidget.axis.clear()
-        self.densityWidget.axis.clear()
-        self.distributionDataGetter.run(self.firstParam.value(),
-                                        self.secondParam.value(),
-                                        self.radioEven.isChecked())
 
-    @QtCore.pyqtSlot()
-    def on_radioEven_clicked(self):
-        self.firstParamLabel.setText('a = ')
-        self.secondParam.setMinimum(-1000)
-        self.secondParamLabel.setText('b = ')
-        self.secondParam.setMinimum(-1000)
-        self.secondParam.setDecimals(2)
+        mx = max(lst)
+        order = 1
 
-    @QtCore.pyqtSlot()
-    def on_radioErlang_clicked(self):
-        self.firstParamLabel.setText('λ = ')
-        self.firstParam.setMinimum(0.01)
-        self.firstParam.setValue(1)
+        while mx > 0:
+            mx = int(mx / 10)
+            order *= 10
 
-        self.secondParamLabel.setText('k = ')
-        self.secondParam.setValue(1)
-        self.secondParam.setMinimum(1)
-        self.secondParam.setDecimals(0)
-
-    @QtCore.pyqtSlot(list)
-    def showData(self, data):
-        self.densityWidget.axis.plot(data[0], data[1])
-        self.densityWidget.axis.set_xlabel('x')
-        self.densityWidget.axis.set_ylabel('f(x)')
-
-        self.densityWidget.canvas.draw()
-
-        self.distrubutionWidget.axis.plot(data[0], data[2])
-        self.distrubutionWidget.axis.set_xlabel('x')
-        self.distrubutionWidget.axis.set_ylabel('F(x)')
-
-        self.distrubutionWidget.canvas.draw()
+        self.lblRand.setText(is_mean(lst, order))
 
 
 if __name__ == "__main__":
     import sys
 
     app = QtWidgets.QApplication(sys.argv)
-    app.setApplicationName('Построение графиков распределений')
+    app.setApplicationName('Псевдослучайные числа')
 
     main = MyWindow()
     main.show()
