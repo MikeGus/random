@@ -18,44 +18,24 @@ def is_mean(lst, order):
 
     chi_2_level = 0.05
     chi_2_order = 1 - chi_2_level
-    chi_2_order_low = (1 - chi_2_order) / 2
-    chi_2_order_high = 1 - chi_2_order_low
 
     expected_probability = 1.0 / order
-    n = len(lst)
-    expected_number = expected_probability * n
+    element_count = [0] * order
+    for el in lst:
+        element_count[el] += 1
 
-    element_counts = count_elements(lst)
+    n = float(len(lst))
 
     chi_2 = 0
-    for count in element_counts:
-        chi_2 += (count - expected_number)**2 / expected_number
+    for count in element_count:
+        chi_2 += (count / n - expected_probability)**2 / expected_probability
 
-    chi_2 += expected_number * (order - len(element_counts))
-    quant_low = stats.distributions.chi2.ppf(chi_2_order_low, order - 1)
-    quant_high = stats.distributions.chi2.ppf(chi_2_order_high, order - 1)
+    chi_2 *= n
 
-    if quant_low < chi_2 < quant_high:
+    chi_2_q = stats.chi2.ppf(chi_2_order, order - 1)
+    if chi_2 < chi_2_q:
         return 'Случайная'
     return 'Неслучайная'
-
-
-# def is_mean(lst, order):
-#     mean = 1 / float(order)
-#     cnt = count_elements(lst)
-#     n  = len(lst)
-#
-#     diff = 0
-#     for el in cnt:
-#         diff = max(diff, abs(el / float(n) - mean))
-#
-#     stat = (6 * n * diff + 1) / (6 * math.sqrt(n))
-#     stats = [1.224, 1.358, 1.628]
-#
-#     if stat <= stats[2]:
-#         return 'Случайная'
-#
-#     return 'Неслучайная'
 
 
 class MyWindow(QtWidgets.QWidget):
@@ -140,8 +120,8 @@ class MyWindow(QtWidgets.QWidget):
 
         for i in range(self.fullNumber):
             self.functional[0].append(random.randint(0, 9))
-            self.functional[1].append(random.randint(10, 99))
-            self.functional[2].append(random.randint(100, 999))
+            self.functional[1].append(random.randint(0, 99))
+            self.functional[2].append(random.randint(0, 999))
 
         self.tableFunctional.setItem(0, 0, QtWidgets.QTableWidgetItem())
         self.tableFunctional.item(0, 0).setText(str(is_mean(self.functional[0], 10)))
