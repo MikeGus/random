@@ -3,8 +3,7 @@
 
 from PyQt5 import QtWidgets
 import random
-import math
-
+from scipy import stats
 
 def count_elements(lst):
     s = set(lst)
@@ -16,21 +15,47 @@ def count_elements(lst):
 
 
 def is_mean(lst, order):
-    mean = 1 / float(order)
-    cnt = count_elements(lst)
-    n  = len(lst)
 
-    diff = 0
-    for el in cnt:
-        diff = max(diff, abs(el / float(n) - mean))
+    chi_2_level = 0.05
+    chi_2_order = 1 - chi_2_level
+    chi_2_order_low = (1 - chi_2_order) / 2
+    chi_2_order_high = 1 - chi_2_order_low
 
-    stat = (6 * n * diff + 1) / (6 * math.sqrt(n))
-    stats = [1.224, 1.358, 1.628]
+    expected_probability = 1.0 / order
+    n = len(lst)
+    expected_number = expected_probability * n
 
-    if stat <= stats[2]:
+    element_counts = count_elements(lst)
+
+    chi_2 = 0
+    for count in element_counts:
+        chi_2 += (count - expected_number)**2 / expected_number
+
+    chi_2 += expected_number * (order - len(element_counts))
+    quant_low = stats.distributions.chi2.ppf(chi_2_order_low, order - 1)
+    quant_high = stats.distributions.chi2.ppf(chi_2_order_high, order - 1)
+
+    if quant_low < chi_2 < quant_high:
         return 'Случайная'
-
     return 'Неслучайная'
+
+
+# def is_mean(lst, order):
+#     mean = 1 / float(order)
+#     cnt = count_elements(lst)
+#     n  = len(lst)
+#
+#     diff = 0
+#     for el in cnt:
+#         diff = max(diff, abs(el / float(n) - mean))
+#
+#     stat = (6 * n * diff + 1) / (6 * math.sqrt(n))
+#     stats = [1.224, 1.358, 1.628]
+#
+#     if stat <= stats[2]:
+#         return 'Случайная'
+#
+#     return 'Неслучайная'
 
 
 class MyWindow(QtWidgets.QWidget):
@@ -154,10 +179,7 @@ class MyWindow(QtWidgets.QWidget):
             else:
                 break
 
-        for i in range(self.fullNumber):
-            self.file[0].append(random.randint(0, 9))
-            self.file[1].append(random.randint(0, 99))
-            self.file[2].append(random.randint(0, 999))
+        file.close()
 
         self.tableFile.setItem(0, 0, QtWidgets.QTableWidgetItem())
         self.tableFile.item(0, 0).setText(str(is_mean(self.file[0], 10)))
